@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
@@ -63,8 +63,16 @@ def login(data: LoginRequest):
 
 # ---------- WebSocket (ของเดิม ไม่เปลี่ยน) ----------
 @app.websocket("/ws")
-async def break_status(websocket: WebSocket):
+async def break_status(websocket: WebSocket, token: str = Query(None)):
+    try:
+        token_data = decode_access_token(token)
+    except Exception:
+        await websocket.close(code=1008)  # 1008 = Policy Violation
+        return
+
     await websocket.accept()
+    user_role = token_data.get("role")
+    user_dept = token_data.get("dept")
 
     while True:
         for emp in employees:
@@ -77,13 +85,20 @@ async def break_status(websocket: WebSocket):
             else:
                 emp["status"] = "normal"
 
+        # ---------- กรองข้อมูลตามสิทธิ์ ----------
+        if user_role == "admin":
+            visible_employees = employees
+        else:
+            visible_employees = [e for e in employees if e["dept"] == user_dept]
+
         payload = {
             "timestamp": datetime.now().isoformat(),
-            "people": employees,
+            "people": visible_employees,
         }
 
         await websocket.send_json(payload)
         await asyncio.sleep(1)
+
 # ---------- ตรวจสอบสิทธิ์ Admin ----------
 def require_admin(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):

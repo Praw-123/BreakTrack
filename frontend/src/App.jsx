@@ -19,7 +19,9 @@ function App() {
   useEffect(() => {
     if (!user) return;
 
-    const ws = new WebSocket("ws://localhost:8000/ws");
+    const token = localStorage.getItem("token");
+    const ws = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       setPeople(data.people);
