@@ -1,13 +1,16 @@
-function Notifications({ people }) {
+function Notifications({ people, user }) {
   const alerts = people
     .filter((p) => p.status !== "normal")
     .sort((a, b) => b.break_minutes - a.break_minutes);
+
+  const roleLabel =
+    user.role === "admin" ? "ผู้ดูแลระบบ" : `หัวหน้า${user.dept}`;
 
   return (
     <>
       <div className="page-header">
         <span className="page-title">การแจ้งเตือนทั้งหมด</span>
-        <span className="role-label">(Supervisor) หัวหน้าแผนก A</span>
+        <span className="role-label">{roleLabel}</span>
       </div>
 
       <div className="notify-list">

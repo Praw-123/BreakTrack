@@ -1,6 +1,9 @@
 const statusText = { normal: "ปกติ", warning: "ใกล้เกิน", exceeded: "เกินเวลา" };
 
-function Overview({ people }) {
+function Overview({ people, user }) {
+  const roleLabel =
+    user.role === "admin" ? "ผู้ดูแลระบบ" : `หัวหน้า${user.dept}`;
+
   const alertList = people.filter((p) => p.status === "exceeded");
   const deptCount = new Set(people.map((p) => p.dept)).size;
   const avgMinutes =
@@ -12,7 +15,7 @@ function Overview({ people }) {
     <>
       <div className="page-header">
         <span className="page-title">ภาพรวมทั้งหมด</span>
-        <span className="role-label">(Supervisor) หัวหน้าแผนก A</span>
+        <span className="role-label">{roleLabel}</span>
       </div>
 
       {alertList.length > 0 && (

@@ -334,3 +334,118 @@
 .logout-btn:hover {
   background: rgba(255,255,255,0.08);
 }
+
+/* ---------- Add Employee Form ---------- */
+.add-btn {
+  background: #3b7dc4;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.add-btn:hover {
+  background: #2f68a8;
+}
+
+.add-employee-form {
+  background: white;
+  border: 1px solid #cfe0f0;
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 420px;
+}
+
+.add-employee-form label {
+  display: block;
+  font-size: 13px;
+  color: #5a6b7d;
+  margin: 12px 0 4px;
+}
+
+.add-employee-form input,
+.add-employee-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cfe0f0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.add-employee-form button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+  background: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-employee-form button:hover {
+  background: #256428;
+}
+
+.form-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.delete-btn {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.delete-btn:hover {
+  background: #ffcdd2;
+}
+
+.action-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-btn {
+  background: #e8f1f8;
+  color: #1f3b57;
+  border: 1px solid #cfe0f0;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.edit-btn:hover {
+  background: #d5e6f5;
+}
+
+.delete-btn {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.delete-btn:hover {
+  background: #ffcdd2;
+}
+

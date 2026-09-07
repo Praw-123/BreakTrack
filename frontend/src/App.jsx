@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Overview from "./pages/Overview";
 import Employees from "./pages/Employees";
+import AddEmployee from "./pages/AddEmployee";
+import EditEmployee from "./pages/EditEmployee";
 import Notifications from "./pages/Notifications";
 import Login from "./pages/Login";
 import "./App.css";
@@ -49,6 +51,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Overview people={people} user={user} />} />
           <Route path="/employees" element={<Employees people={people} user={user} />} />
+          <Route path="/employees/new" element={<AddEmployee />} />
+          <Route path="/employees/edit/:employee_id" element={<EditEmployee />} />
           <Route path="/notifications" element={<Notifications people={people} user={user} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

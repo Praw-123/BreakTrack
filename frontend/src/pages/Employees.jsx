@@ -1,11 +1,28 @@
+import { Link } from "react-router-dom";
+
 const statusText = { normal: "ปกติ", warning: "ใกล้เกิน", exceeded: "เกินเวลา" };
 
-function Employees({ people }) {
+function Employees({ people, user }) {
+  const handleDelete = async (employee_id) => {
+    if (!window.confirm(`ยืนยันลบพนักงาน ${employee_id}?`)) return;
+
+    const res = await fetch(`http://localhost:8000/employees/${employee_id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+
+    if (!res.ok) {
+      alert("ลบไม่สำเร็จ");
+    }
+  };
+
   return (
     <>
       <div className="page-header">
         <span className="page-title">รายชื่อพนักงานในแผนก</span>
-        <span className="role-label">(Supervisor) หัวหน้าแผนก A</span>
+        {user.role === "admin" && (
+          <Link to="/employees/new" className="add-btn">+ เพิ่มพนักงาน</Link>
+        )}
       </div>
 
       <div className="table-wrap">
@@ -17,6 +34,7 @@ function Employees({ people }) {
               <th>สีหมวก</th>
               <th>แผนก</th>
               <th>สถานะปัจจุบัน</th>
+              {user.role === "admin" && <th>จัดการ</th>}
             </tr>
           </thead>
           <tbody>
@@ -29,6 +47,20 @@ function Employees({ people }) {
                 <td>
                   <span className={`badge ${p.status}`}>{statusText[p.status]}</span>
                 </td>
+                {user.role === "admin" && (
+                  <td className="action-cell">
+                    <Link
+                      to={`/employees/edit/${p.employee_id}`}
+                      state={{ employee: p }}
+                      className="edit-btn"
+                    >
+                      แก้ไข
+                    </Link>
+                    <button className="delete-btn" onClick={() => handleDelete(p.employee_id)}>
+                      ลบ
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
