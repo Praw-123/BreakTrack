@@ -6,7 +6,7 @@ const menu = [
   { to: "/notifications", label: "การแจ้งเตือน" },
 ];
 
-function Sidebar() {
+function Sidebar({ user, onLogout }) {
   return (
     <aside className="sidebar">
       <h2>BreakTrack</h2>
@@ -24,6 +24,15 @@ function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <div className="sidebar-footer">
+        <div className="sidebar-user">
+          {user.role === "admin" ? "ผู้ดูแลระบบ" : `หัวหน้า${user.dept}`}
+        </div>
+        <button className="logout-btn" onClick={onLogout}>
+          ออกจากระบบ
+        </button>
+      </div>
     </aside>
   );
 }

@@ -1,7 +1,12 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import asyncio
 from datetime import datetime
+
+from database import SessionLocal
+from models import Employee, User
+from auth import verify_password, create_access_token
 
 app = FastAPI()
 
@@ -12,13 +17,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-employees = [
-    {"employee_id": "EMP-001", "name": "สมชาย ใจดี", "dept": "แผนก A",
-     "hat_color": "แดง", "break_minutes": 0},
-    {"employee_id": "EMP-002", "name": "ประสิทธิ์ เก่งกล้า", "dept": "แผนก B",
-     "hat_color": "น้ำเงิน", "break_minutes": 0},
-]
 
+# ---------- โหลดพนักงานจากฐานข้อมูลตอนเริ่มเซิร์ฟเวอร์ ----------
+def load_employees():
+    db = SessionLocal()
+    rows = db.query(Employee).all()
+    result = [
+        {
+            "employee_id": r.employee_id,
+            "name": r.name,
+            "dept": r.dept,
+            "hat_color": r.hat_color,
+            "break_minutes": 0,
+        }
+        for r in rows
+    ]
+    db.close()
+    return result
+
+
+employees = load_employees()
+
+
+# ---------- Login ----------
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/login")
+def login(data: LoginRequest):
+    db = SessionLocal()
+    user = db.query(User).filter(User.username == data.username).first()
+    db.close()
+
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="username หรือ password ไม่ถูกต้อง")
+
+    token = create_access_token(
+        {"sub": user.username, "role": user.role, "dept": user.dept}
+    )
+    return {"access_token": token, "role": user.role, "dept": user.dept}
+
+
+# ---------- WebSocket (ของเดิม ไม่เปลี่ยน) ----------
 @app.websocket("/ws")
 async def break_status(websocket: WebSocket):
     await websocket.accept()
