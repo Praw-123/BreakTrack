@@ -11,7 +11,9 @@ import config
 from detector import find_employee_balls, put_thai_text
 from database import SessionLocal
 from models import Employee, User
-from auth import verify_password, create_access_token, decode_access_token
+from auth import verify_password, create_access_token, decode_access_token, hash_password
+
+
 
 app = FastAPI()
 
@@ -271,3 +273,108 @@ def update_employee(
 
     return {"message": "แก้ไขพนักงานสำเร็จ"}
 
+# ---------- จัดการบัญชีผู้ใช้งาน (เฉพาะ Admin) ----------
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str
+    dept: str | None = None
+
+
+@app.get("/users")
+def list_users(current_user: dict = Depends(require_admin)):
+    db = SessionLocal()
+    rows = db.query(User).all()
+    result = [
+        {"id": u.id, "username": u.username, "role": u.role, "dept": u.dept}
+        for u in rows
+    ]
+    db.close()
+    return result
+
+
+@app.get("/departments/available")
+def available_departments(current_user: dict = Depends(require_admin)):
+    """คืนเฉพาะแผนกที่ยังไม่มีหัวหน้าแผนก เพื่อไม่ให้เลือกซ้ำ"""
+    db = SessionLocal()
+    taken = {
+        u.dept
+        for u in db.query(User).filter(User.role == "supervisor").all()
+        if u.dept
+    }
+    db.close()
+    return [d for d in config.DEPARTMENTS if d not in taken]
+
+
+@app.post("/users")
+def create_user(data: UserCreate, current_user: dict = Depends(require_admin)):
+    db = SessionLocal()
+
+    existing = db.query(User).filter(User.username == data.username).first()
+    if existing:
+        db.close()
+        raise HTTPException(status_code=400, detail="ชื่อผู้ใช้งานนี้มีอยู่แล้ว")
+
+    if data.role not in ("admin", "supervisor"):
+        db.close()
+        raise HTTPException(status_code=400, detail="สิทธิ์ต้องเป็น admin หรือ supervisor เท่านั้น")
+
+    # ---------- กติกา: หัวหน้าแผนกได้แผนกละ 1 คนเท่านั้น ----------
+    if data.role == "supervisor":
+        if not data.dept:
+            db.close()
+            raise HTTPException(status_code=400, detail="กรุณาเลือกแผนกที่รับผิดชอบ")
+
+        if data.dept not in config.DEPARTMENTS:
+            db.close()
+            raise HTTPException(status_code=400, detail="ไม่พบแผนกนี้ในระบบ")
+
+        taken = db.query(User).filter(
+            User.role == "supervisor", User.dept == data.dept
+        ).first()
+        if taken:
+            db.close()
+            raise HTTPException(
+                status_code=400,
+                detail=f"{data.dept} มีหัวหน้าแผนกอยู่แล้ว (บัญชี {taken.username})",
+            )
+
+    new_user = User(
+        username=data.username,
+        password_hash=hash_password(data.password),
+        role=data.role,
+        dept=data.dept if data.role == "supervisor" else None,
+    )
+    db.add(new_user)
+    db.commit()
+    db.close()
+
+    return {"message": "เพิ่มผู้ใช้งานสำเร็จ"}
+
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, current_user: dict = Depends(require_admin)):
+    db = SessionLocal()
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        db.close()
+        raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้งานคนนี้")
+
+    # กันลบบัญชีตัวเอง จะได้ไม่ล็อกตัวเองออกจากระบบ
+    if user.username == current_user.get("sub"):
+        db.close()
+        raise HTTPException(status_code=400, detail="ไม่สามารถลบบัญชีของตัวเองได้")
+
+    # กันลบ admin คนสุดท้าย จะได้ไม่มีใครดูแลระบบได้เลย
+    if user.role == "admin":
+        admin_count = db.query(User).filter(User.role == "admin").count()
+        if admin_count <= 1:
+            db.close()
+            raise HTTPException(status_code=400, detail="ต้องมีผู้ดูแลระบบอย่างน้อย 1 บัญชี")
+
+    db.delete(user)
+    db.commit()
+    db.close()
+
+    return {"message": "ลบผู้ใช้งานสำเร็จ"}

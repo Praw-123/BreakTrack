@@ -9,6 +9,8 @@ import Notifications from "./pages/Notifications";
 import LiveCamera from "./pages/LiveCamera";
 import Login from "./pages/Login";
 import "./App.css";
+import Users from "./pages/Users";
+import AddUser from "./pages/AddUser";
 
 function App() {
   const [people, setPeople] = useState([]);
@@ -58,6 +60,8 @@ function App() {
           <Route path="/employees/edit/:employee_id" element={<EditEmployee />} />
           <Route path="/notifications" element={<Notifications people={people} user={user} />} />
           <Route path="/camera" element={<LiveCamera />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/users/new" element={<AddUser />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
