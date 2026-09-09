@@ -6,6 +6,7 @@ import Employees from "./pages/Employees";
 import AddEmployee from "./pages/AddEmployee";
 import EditEmployee from "./pages/EditEmployee";
 import Notifications from "./pages/Notifications";
+import LiveCamera from "./pages/LiveCamera";
 import Login from "./pages/Login";
 import "./App.css";
 
@@ -56,6 +57,7 @@ function App() {
           <Route path="/employees/new" element={<AddEmployee />} />
           <Route path="/employees/edit/:employee_id" element={<EditEmployee />} />
           <Route path="/notifications" element={<Notifications people={people} user={user} />} />
+          <Route path="/camera" element={<LiveCamera />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

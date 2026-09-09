@@ -449,3 +449,14 @@
   background: #ffcdd2;
 }
 
+.camera-box {
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 720px;
+}
+
+.camera-box img {
+  width: 100%;
+  display: block;
+}

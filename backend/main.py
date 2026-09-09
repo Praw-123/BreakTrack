@@ -3,8 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
 from datetime import datetime
-
+import time
+from fastapi.responses import StreamingResponse
 from fastapi import Depends, Header
+import cv2
+import config
+from detector import find_employee_balls, put_thai_text
 from database import SessionLocal
 from models import Employee, User
 from auth import verify_password, create_access_token, decode_access_token
@@ -30,6 +34,7 @@ def load_employees():
             "dept": r.dept,
             "hat_color": r.hat_color,
             "break_minutes": 0,
+            "status": "normal",
         }
         for r in rows
     ]
@@ -38,6 +43,77 @@ def load_employees():
 
 
 employees = load_employees()
+latest_frame = None
+
+
+async def camera_loop():
+    """จับภาพ 20 fps เพื่อความลื่น แต่ตรวจจับสีทุก 1 วินาที เพื่อไม่เปลืองเครื่อง"""
+    global latest_frame
+    cap = cv2.VideoCapture(config.CAMERA_INDEX, cv2.CAP_DSHOW)
+
+    frame_count = 0
+    last_balls = []
+
+    while True:
+        ret, frame = cap.read()
+
+        if ret:
+            frame_count += 1
+
+            # ---------- ตรวจจับทุก 20 เฟรม (~1 วินาที) ----------
+            if frame_count % 20 == 0:
+                last_balls = find_employee_balls(frame)
+                detected_colors = {b["color"] for b in last_balls}
+
+                for emp in employees:
+                    if emp["hat_color"] in detected_colors:
+                        # 1 รอบ = 1 วินาทีจริง คูณด้วยตัวเร่งเวลาสำหรับสาธิต
+                        emp["break_minutes"] += (1 / 60) * config.TIME_SCALE
+
+                        if emp["break_minutes"] >= config.MAX_BREAK_MINUTES:
+                            emp["status"] = "exceeded"
+                        elif emp["break_minutes"] >= config.WARNING_MINUTES:
+                            emp["status"] = "warning"
+                        else:
+                            emp["status"] = "normal"
+
+            # ---------- วาดกรอบจากผลตรวจล่าสุด (ทุกเฟรม) ----------
+            for ball in last_balls:
+                x1, y1, x2, y2 = ball["box"]
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                frame = put_thai_text(frame, ball["color"], (x1, max(y1 - 30, 0)))
+
+            latest_frame = frame
+
+        await asyncio.sleep(0.05)   # 20 fps
+
+
+
+@app.on_event("startup")
+async def start_camera():
+    asyncio.create_task(camera_loop())
+def generate_frames():
+    """แปลงเฟรมล่าสุดเป็นภาพ JPEG ส่งออกแบบ stream ต่อเนื่อง"""
+    while True:
+        if latest_frame is not None:
+            _, buffer = cv2.imencode(".jpg", latest_frame)
+            frame_bytes = buffer.tobytes()
+            yield (b"--frame\r\n"
+                   b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n")
+        time.sleep(0.05)
+
+
+@app.get("/video_feed")
+def video_feed(token: str = Query(None)):
+    try:
+        decode_access_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="กรุณาเข้าสู่ระบบก่อน")
+
+    return StreamingResponse(
+        generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
 
 
 # ---------- Login ----------
@@ -75,17 +151,7 @@ async def break_status(websocket: WebSocket, token: str = Query(None)):
     user_dept = token_data.get("dept")
 
     while True:
-        for emp in employees:
-            emp["break_minutes"] += 0.2
-
-            if emp["break_minutes"] >= 15:
-                emp["status"] = "exceeded"
-            elif emp["break_minutes"] >= 12:
-                emp["status"] = "warning"
-            else:
-                emp["status"] = "normal"
-
-        # ---------- กรองข้อมูลตามสิทธิ์ ----------
+        # ---------- กรองข้อมูลตามสิทธิ์ (ของเดิม) ----------
         if user_role == "admin":
             visible_employees = employees
         else:
@@ -173,37 +239,6 @@ def delete_employee(employee_id: str, current_user: dict = Depends(require_admin
     employees = [e for e in employees if e["employee_id"] != employee_id]
 
     return {"message": "ลบพนักงานสำเร็จ"}
-
-class EmployeeUpdate(BaseModel):
-    name: str
-    dept: str
-    hat_color: str
-
-
-@app.put("/employees/{employee_id}")
-def update_employee(
-    employee_id: str, data: EmployeeUpdate, current_user: dict = Depends(require_admin)
-):
-    db = SessionLocal()
-    emp = db.query(Employee).filter(Employee.employee_id == employee_id).first()
-    if not emp:
-        db.close()
-        raise HTTPException(status_code=404, detail="ไม่พบพนักงานคนนี้")
-
-    emp.name = data.name
-    emp.dept = data.dept
-    emp.hat_color = data.hat_color
-    db.commit()
-    db.close()
-
-    for e in employees:
-        if e["employee_id"] == employee_id:
-            e["name"] = data.name
-            e["dept"] = data.dept
-            e["hat_color"] = data.hat_color
-            break
-
-    return {"message": "แก้ไขพนักงานสำเร็จ"}
 
 class EmployeeUpdate(BaseModel):
     name: str

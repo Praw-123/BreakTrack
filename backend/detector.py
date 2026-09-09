@@ -54,6 +54,75 @@ def find_color_balls(frame):
     return balls
 
 
+def read_dominant_color(frame, box):
+    """
+    อ่านสีเด่นภายในกรอบที่กำหนด
+    คืนชื่อสีถ้าตรงกับสีที่ลงทะเบียนไว้ / คืน None ถ้าไม่ตรงสีไหนเลย
+    """
+    x1, y1, x2, y2 = box
+    region = frame[max(y1, 0):y2, max(x1, 0):x2]
+    if region.size == 0:
+        return None
+
+    hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+
+    best_color = None
+    best_ratio = 0.0
+
+    for color_name, ranges in config.COLOR_RANGES.items():
+        mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        for (h_low, h_high) in ranges:
+            lower = np.array([h_low, config.MIN_SATURATION, config.MIN_VALUE])
+            upper = np.array([h_high, 255, 255])
+            mask |= cv2.inRange(hsv, lower, upper)
+
+        ratio = np.count_nonzero(mask) / mask.size
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_color = color_name
+
+    # ต้องมีสัดส่วนสีมากพอ ถึงจะเชื่อว่าเป็นสีนั้นจริง
+    if best_ratio >= config.MIN_COLOR_RATIO:
+        return best_color
+    return None
+
+
+def find_employee_balls(frame):
+    """
+    หาลูกบอลของพนักงาน ต้องผ่าน 2 เงื่อนไขพร้อมกัน (AND)
+      1. YOLO ยืนยันว่าเป็นวัตถุทรงกลม (คลาส sports ball)
+      2. สีภายในกรอบนั้นตรงกับสีที่ลงทะเบียนให้พนักงาน
+
+    ถ้าขาดข้อใดข้อหนึ่ง จะไม่ถูกนับ เพื่อป้องกันการตรวจจับผิดพลาด
+    ซึ่งอาจทำให้พนักงานถูกแจ้งเตือนโดยไม่เป็นธรรม
+    """
+    results = model(
+        frame,
+        classes=[config.SPORTS_BALL_CLASS_ID],
+        conf=config.BALL_CONFIDENCE_THRESHOLD,
+        verbose=False,
+    )
+
+    balls = []
+    for box in results[0].boxes:
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+        # ---------- เงื่อนไขที่ 2: ต้องมีสีตรงกับที่ลงทะเบียนไว้ ----------
+        color = read_dominant_color(frame, (x1, y1, x2, y2))
+        if color is None:
+            continue  # เป็นลูกบอลจริง แต่ไม่ใช่สีของพนักงานคนไหน จึงไม่นับ
+
+        balls.append({
+            "color": color,
+            "box": (x1, y1, x2, y2),
+            "center": ((x1 + x2) // 2, (y1 + y2) // 2),
+            "radius": max(x2 - x1, y2 - y1) // 2,
+            "confidence": float(box.conf[0]),
+        })
+
+    return balls
+
+
 def detect_people(frame):
     """ตรวจคนด้วย YOLO + จับคู่กับลูกบอลสีที่อยู่ใกล้หัวที่สุด"""
     results = model(frame, classes=[config.PERSON_CLASS_ID],
@@ -88,13 +157,16 @@ if __name__ == "__main__":
         if not ret:
             break
 
-        balls = find_color_balls(frame)
+        balls = find_employee_balls(frame)
 
         for ball in balls:
-            cx, cy = ball["center"]
-            r = ball["radius"]
-            cv2.circle(frame, (cx, cy), r, (255, 0, 255), 2)
-            frame = put_thai_text(frame, ball["color"], (max(cx - r, 0), max(cy - r - 28, 0)))
+            x1, y1, x2, y2 = ball["box"]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            label = f'{ball["color"]}  ({ball["confidence"]:.2f})'
+            frame = put_thai_text(frame, label, (x1, max(y1 - 28, 0)))
+
+        cv2.putText(frame, f"employee balls: {len(balls)}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
 
         cv2.imshow("Detector Test", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):

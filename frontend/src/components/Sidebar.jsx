@@ -3,8 +3,10 @@ import { NavLink } from "react-router-dom";
 const menu = [
   { to: "/", label: "ภาพรวม" },
   { to: "/employees", label: "รายชื่อพนักงาน" },
+  { to: "/camera", label: "กล้องเรียลไทม์" },
   { to: "/notifications", label: "การแจ้งเตือน" },
 ];
+
 
 function Sidebar({ user, onLogout }) {
   return (
