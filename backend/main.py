@@ -47,6 +47,11 @@ def load_employees():
 employees = load_employees()
 latest_frame = None
 
+# เวลาที่เห็นพนักงานแต่ละคนครั้งล่าสุด {employee_id: datetime}
+# เก็บแยกจาก employees เพราะ employees ถูกส่งเป็น JSON ผ่าน WebSocket
+# ซึ่งแปลง datetime ไม่ได้
+last_seen = {}
+
 
 async def camera_loop():
     """จับภาพ 20 fps เพื่อความลื่น แต่ตรวจจับสีทุก 1 วินาที เพื่อไม่เปลืองเครื่อง"""
@@ -67,8 +72,23 @@ async def camera_loop():
                 last_balls = find_employee_balls(frame)
                 detected_colors = {b["color"] for b in last_balls}
 
+                now = datetime.now()
+
                 for emp in employees:
                     if emp["hat_color"] in detected_colors:
+                        eid = emp["employee_id"]
+                        prev = last_seen.get(eid)
+
+                        # ---------- กันโกง: แยกรอบการพัก ----------
+                        # หายไปจากกล้องนานเกินเกณฑ์ = ถือเป็นรอบพักใหม่ เริ่มนับจาก 0
+                        # ถ้าหายไปไม่นาน (เดินออกแล้วรีบกลับ) = รอบเดิม นับต่อ
+                        if prev is not None:
+                            gap = (now - prev).total_seconds() / 60 * config.TIME_SCALE
+                            if gap > config.SESSION_GAP_MINUTES:
+                                emp["break_minutes"] = 0
+
+                        last_seen[eid] = now
+
                         # 1 รอบ = 1 วินาทีจริง คูณด้วยตัวเร่งเวลาสำหรับสาธิต
                         emp["break_minutes"] += (1 / 60) * config.TIME_SCALE
 
@@ -78,7 +98,18 @@ async def camera_loop():
                             emp["status"] = "warning"
                         else:
                             emp["status"] = "normal"
-
+                    else:
+                        # ---------- กันโกง: ไม่เจอในเฟรมนี้ ----------
+                        # ถ้าสถานะเป็น "เกินเวลา" ไม่รีเซ็ตเอง ต้องรอหัวหน้ากด "รับทราบ"
+                        # กันไม่ให้แจ้งเตือนหายไปเองก่อนหัวหน้าจะทันเห็น
+                        eid = emp["employee_id"]
+                        prev = last_seen.get(eid)
+                        if prev is not None and emp["status"] != "exceeded":
+                            gap = (now - prev).total_seconds() / 60 * config.TIME_SCALE
+                            if gap > config.SESSION_GAP_MINUTES:
+                                emp["break_minutes"] = 0
+                                emp["status"] = "normal"
+                                del last_seen[eid]
             # ---------- วาดกรอบจากผลตรวจล่าสุด (ทุกเฟรม) ----------
             for ball in last_balls:
                 x1, y1, x2, y2 = ball["box"]
@@ -182,6 +213,42 @@ def require_admin(authorization: str = Header(None)):
         raise HTTPException(status_code=403, detail="ต้องเป็นผู้ดูแลระบบเท่านั้น")
 
     return payload
+
+# ---------- ตรวจสอบสิทธิ์: admin ทุกแผนก / supervisor เฉพาะแผนกตัวเอง ----------
+def require_own_dept_or_admin(employee_id: str, authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="กรุณาเข้าสู่ระบบก่อน")
+
+    token = authorization.replace("Bearer ", "")
+    try:
+        payload = decode_access_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="token ไม่ถูกต้องหรือหมดอายุ")
+
+    if payload.get("role") != "admin":
+        emp = next((e for e in employees if e["employee_id"] == employee_id), None)
+        if emp is None:
+            raise HTTPException(status_code=404, detail="ไม่พบพนักงานคนนี้")
+        if emp["dept"] != payload.get("dept"):
+            raise HTTPException(status_code=403, detail="รับทราบได้เฉพาะพนักงานในแผนกตนเองเท่านั้น")
+
+    return payload
+
+
+# ---------- หัวหน้าแผนกกดรับทราบ ปิดรอบแจ้งเตือน ----------
+@app.post("/employees/{employee_id}/acknowledge")
+def acknowledge_break(
+    employee_id: str, current_user: dict = Depends(require_own_dept_or_admin)
+):
+    emp = next((e for e in employees if e["employee_id"] == employee_id), None)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="ไม่พบพนักงานคนนี้")
+
+    emp["break_minutes"] = 0
+    emp["status"] = "normal"
+    last_seen.pop(employee_id, None)
+
+    return {"message": "รับทราบเรียบร้อย"}
 
 
 # ---------- เพิ่มพนักงานใหม่ ----------

@@ -460,3 +460,28 @@
   width: 100%;
   display: block;
 }
+
+/*ปุ่ม กดรับทราบการแจ้งเตือนของหัวหน้าแผนก*/
+.ack-btn {
+  align-self: center;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 8px 18px;
+  background: #3b7dc4;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ack-btn:hover {
+  background: #2f68a8;
+}
+
+.ack-btn:disabled {
+  background: #b8c4d0;
+  cursor: default;
+}

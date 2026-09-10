@@ -16,6 +16,11 @@ function Employees({ people, user }) {
     }
   };
 
+  const sortedPeople = [...people].sort((a, b) => {
+    if (a.dept !== b.dept) return a.dept.localeCompare(b.dept, "th");
+    return a.employee_id.localeCompare(b.employee_id, "th");
+  });
+
   return (
     <>
       <div className="page-header">
@@ -38,7 +43,7 @@ function Employees({ people, user }) {
             </tr>
           </thead>
           <tbody>
-            {people.map((p) => (
+            {sortedPeople.map((p) => (
               <tr key={p.employee_id}>
                 <td>{p.name}</td>
                 <td>{p.employee_id}</td>

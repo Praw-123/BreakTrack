@@ -1,10 +1,31 @@
+import { useState } from "react";
+
 function Notifications({ people, user }) {
+  const [ackingId, setAckingId] = useState(null);
+
   const alerts = people
     .filter((p) => p.status !== "normal")
     .sort((a, b) => b.break_minutes - a.break_minutes);
 
   const roleLabel =
     user.role === "admin" ? "ผู้ดูแลระบบ" : `หัวหน้า${user.dept}`;
+
+  const token = localStorage.getItem("token");
+
+  const handleAcknowledge = async (employeeId) => {
+    setAckingId(employeeId);
+    try {
+      await fetch(`http://localhost:8000/employees/${employeeId}/acknowledge`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // ไม่ต้องอัปเดต state เอง รอ WebSocket ส่งข้อมูลใหม่มาใน 1 วินาทีถัดไป
+    } catch {
+      // เงียบไว้ก่อน ถ้าพลาดพนักงานจะยังค้างอยู่ในรายการ กดรับทราบใหม่ได้
+    } finally {
+      setAckingId(null);
+    }
+  };
 
   return (
     <>
@@ -27,6 +48,16 @@ function Notifications({ people, user }) {
               </div>
               <div className="notify-sub">แผนก {p.dept}</div>
             </div>
+
+            {p.status === "exceeded" && (
+              <button
+                className="ack-btn"
+                disabled={ackingId === p.employee_id}
+                onClick={() => handleAcknowledge(p.employee_id)}
+              >
+                {ackingId === p.employee_id ? "กำลังรับทราบ..." : "รับทราบ"}
+              </button>
+            )}
           </div>
         ))}
       </div>
