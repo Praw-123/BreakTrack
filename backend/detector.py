@@ -24,10 +24,8 @@ def find_color_balls(frame):
 
     for color_name, ranges in config.COLOR_RANGES.items():
         mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        for (h_low, h_high) in ranges:
-            lower = np.array([h_low, config.MIN_SATURATION, config.MIN_VALUE])
-            upper = np.array([h_high, 255, 255])
-            mask |= cv2.inRange(hsv, lower, upper)
+        for (lower, upper) in ranges:
+            mask |= cv2.inRange(hsv, np.array(lower), np.array(upper))
 
         # ลบจุดสีเล็ก ๆ รบกวนออก แล้วเติมรูให้ก้อนสีทึบขึ้น
         mask = cv2.erode(mask, None, iterations=2)
@@ -71,10 +69,8 @@ def read_dominant_color(frame, box):
 
     for color_name, ranges in config.COLOR_RANGES.items():
         mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        for (h_low, h_high) in ranges:
-            lower = np.array([h_low, config.MIN_SATURATION, config.MIN_VALUE])
-            upper = np.array([h_high, 255, 255])
-            mask |= cv2.inRange(hsv, lower, upper)
+        for (lower, upper) in ranges:
+            mask |= cv2.inRange(hsv, np.array(lower), np.array(upper))
 
         ratio = np.count_nonzero(mask) / mask.size
         if ratio > best_ratio:
