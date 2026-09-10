@@ -270,6 +270,19 @@ def create_employee(data: EmployeeCreate, current_user: dict = Depends(require_a
         db.close()
         raise HTTPException(status_code=400, detail="รหัสพนักงานนี้มีอยู่แล้ว")
 
+    # ---------- กติกา: สีหมวก 1 สี ใช้แทนตัวตนได้แค่ 1 คน ----------
+    if data.hat_color not in config.COLOR_RANGES:
+        db.close()
+        raise HTTPException(status_code=400, detail="ไม่พบสีหมวกนี้ในระบบ")
+
+    color_taken = db.query(Employee).filter(Employee.hat_color == data.hat_color).first()
+    if color_taken:
+        db.close()
+        raise HTTPException(
+            status_code=400,
+            detail=f"สีหมวกนี้ถูกใช้กับพนักงาน {color_taken.employee_id} อยู่แล้ว",
+        )
+
     new_emp = Employee(
         employee_id=data.employee_id,
         name=data.name,
@@ -324,6 +337,20 @@ def update_employee(
     if not emp:
         db.close()
         raise HTTPException(status_code=404, detail="ไม่พบพนักงานคนนี้")
+    # ---------- กติกา: สีหมวก 1 สี ใช้แทนตัวตนได้แค่ 1 คน (ยกเว้นตัวเอง) ----------
+    if data.hat_color not in config.COLOR_RANGES:
+        db.close()
+        raise HTTPException(status_code=400, detail="ไม่พบสีหมวกนี้ในระบบ")
+
+    color_taken = db.query(Employee).filter(
+        Employee.hat_color == data.hat_color, Employee.employee_id != employee_id
+    ).first()
+    if color_taken:
+        db.close()
+        raise HTTPException(
+            status_code=400,
+            detail=f"สีหมวกนี้ถูกใช้กับพนักงาน {color_taken.employee_id} อยู่แล้ว",
+        )
 
     emp.name = data.name
     emp.dept = data.dept
@@ -359,7 +386,7 @@ def list_users(current_user: dict = Depends(require_admin)):
     db.close()
     return result
 
-
+#กันหัวหน้าแผนกและสีหมวกซ้ำกัน
 @app.get("/departments/available")
 def available_departments(current_user: dict = Depends(require_admin)):
     """คืนเฉพาะแผนกที่ยังไม่มีหัวหน้าแผนก เพื่อไม่ให้เลือกซ้ำ"""
@@ -371,6 +398,18 @@ def available_departments(current_user: dict = Depends(require_admin)):
     }
     db.close()
     return [d for d in config.DEPARTMENTS if d not in taken]
+
+@app.get("/colors/available")
+def available_colors(exclude: str = Query(None), current_user: dict = Depends(require_admin)):
+    """คืนเฉพาะสีหมวกที่ยังไม่มีพนักงานคนอื่นใช้ เพื่อไม่ให้สีซ้ำกัน (สีซ้ำ = ระบบแยกตัวตนไม่ได้)"""
+    db = SessionLocal()
+    taken = {
+        e.hat_color
+        for e in db.query(Employee).all()
+        if e.employee_id != exclude
+    }
+    db.close()
+    return [c for c in config.COLOR_RANGES.keys() if c not in taken]
 
 
 @app.post("/users")

@@ -1,22 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const HAT_COLORS = ["แดง", "น้ำเงิน", "เขียว", "เหลือง", "ชมพู", "ส้ม", "ฟ้า", "ม่วง"];
 
 function AddEmployee() {
   const [form, setForm] = useState({
     employee_id: "",
     name: "",
     dept: "แผนก A",
-    hat_color: "แดง",
+    hat_color: "",
   });
+  const [availableColors, setAvailableColors] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
+  const token = localStorage.getItem("token");
+
+  // ดึงเฉพาะสีหมวกที่ยังไม่มีใครใช้
+  useEffect(() => {
+    const loadColors = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/colors/available", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+
+        const colors = await res.json();
+        setAvailableColors(colors);
+        setForm((f) => ({ ...f, hat_color: colors[0] || "" }));
+      } catch {
+        setError("โหลดรายชื่อสีหมวกไม่สำเร็จ");
+      }
+    };
+    loadColors();
+  }, [token]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
+
+  const noColorLeft = availableColors.length === 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +49,7 @@ function AddEmployee() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(form),
       });
@@ -82,13 +103,20 @@ function AddEmployee() {
         </select>
 
         <label>สีหมวก</label>
-        <select name="hat_color" value={form.hat_color} onChange={handleChange}>
-          {HAT_COLORS.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        {noColorLeft ? (
+          <div className="login-error">
+            สีหมวกถูกใช้ครบทุกสีแล้ว (8 สี) ไม่สามารถเพิ่มพนักงานใหม่ได้
+            กรุณาลบพนักงานเดิมก่อน หรือเปลี่ยนไปใช้วิธีระบุตัวตนอื่น
+          </div>
+        ) : (
+          <select name="hat_color" value={form.hat_color} onChange={handleChange}>
+            {availableColors.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        )}
 
-        <button type="submit">บันทึก</button>
+        <button type="submit" disabled={noColorLeft}>บันทึก</button>
       </form>
     </>
   );

@@ -1,7 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-
-const HAT_COLORS = ["แดง", "น้ำเงิน", "เขียว", "เหลือง", "ชมพู", "ส้ม", "ฟ้า", "ม่วง"];
 
 function EditEmployee() {
   const { employee_id } = useParams();
@@ -12,10 +10,29 @@ function EditEmployee() {
   const [form, setForm] = useState({
     name: existing?.name || "",
     dept: existing?.dept || "แผนก A",
-    hat_color: existing?.hat_color || "แดง",
+    hat_color: existing?.hat_color || "",
   });
+  const [availableColors, setAvailableColors] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // ดึงสีที่ยังว่าง (สีเดิมของพนักงานคนนี้จะไม่ถูกตัดออก เพราะเป็นเจ้าของอยู่แล้ว)
+  useEffect(() => {
+    const loadColors = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:8000/colors/available?exclude=${employee_id}`,
+          { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+        );
+        if (!res.ok) return;
+        const colors = await res.json();
+        setAvailableColors(colors);
+      } catch {
+        setError("โหลดรายชื่อสีหมวกไม่สำเร็จ");
+      }
+    };
+    loadColors();
+  }, [employee_id]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -82,7 +99,7 @@ function EditEmployee() {
 
         <label>สีหมวก</label>
         <select name="hat_color" value={form.hat_color} onChange={handleChange}>
-          {HAT_COLORS.map((c) => (
+          {availableColors.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
